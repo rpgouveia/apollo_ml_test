@@ -1,6 +1,7 @@
 import argparse
 import pandas as pd
-from src.data_processing import data_loader, flatten_data
+from pandas import DataFrame
+from src.data_processing import data_loader, flatten_data, clean_and_validate_data
 
 
 def main():
@@ -15,14 +16,15 @@ def main():
 
     print(f"Carregando dados do arquivo: {args.data_path}")
     try:
-        data = data_loader(args.data_path)
+        data: dict = data_loader(args.data_path)
         print("Dados carregados com sucesso.")
-        flattened_data = flatten_data(data)
-        df = pd.DataFrame(flattened_data)
+        flattened_data: list = flatten_data(data)
+        df: DataFrame = pd.DataFrame(flattened_data)
         print("Dados achatados e convertidos para DataFrame com sucesso.\n")
 
-        print("Estrutura do DataFrame:")
-        print(df.head())
+        validated_df: DataFrame = clean_and_validate_data(df)
+        print(f"Total de registros válidos: {len(validated_df)}")
+        print("Validação concluída.\n")
 
     except FileNotFoundError:
         print(f"Erro: O arquivo '{args.data_path}' não foi encontrado.")
