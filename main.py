@@ -1,4 +1,5 @@
 import argparse
+import pandas as pd
 from src.data_processing import data_loader, flatten_data
 
 
@@ -16,13 +17,17 @@ def main():
     try:
         data = data_loader(args.data_path)
         print("Dados carregados com sucesso.")
+        flattened_data = flatten_data(data)
+        df = pd.DataFrame(flattened_data)
+        print("Dados achatados e convertidos para DataFrame com sucesso.\n")
+
+        print("Estrutura do DataFrame:")
+        print(df.head())
+
     except FileNotFoundError:
         print(f"Erro: O arquivo '{args.data_path}' não foi encontrado.")
     except Exception as e:
         print(f"Ocorreu um erro ao carregar os dados: {e}")
-
-
-
 
 if __name__ == '__main__':
     main()
