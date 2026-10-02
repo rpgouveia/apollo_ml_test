@@ -22,37 +22,35 @@ def calculate_top_k_accuracy(
     return float(np.mean(matches))
 
 
-def calculate_macro_f1_score(y_true: NDArray, y_pred: NDArray) -> float:
+def calculate_per_class_f1_score(y_true: NDArray, y_pred: NDArray) -> dict:
     """
-    Calculates the macro F1 score.
-    The macro F1 score is the unweighted mean of F1 scores for each class.
-    It treats all classes equally, regardless of their support (number of true instances).
-    https://ml-compiled.readthedocs.io/en/latest/metrics.html
-
-    Args:
-        y_true: 1D array containing the true labels.
-        y_pred: 1D array containing the predicted labels.
+    Calculates the F1 score for each individual class.
+    Returns a dictionary mapping the class label to its F1 score.
     """
-    # Uses the union to ensure that classes present in the
-    # expected set but not in y_true are accounted for.
-    classes: NDArray = np.union1d(y_true, y_pred)
-    f1_scores: list[float] = []
+    classes = np.union1d(y_true, y_pred)
+    f1_scores = {}
 
     for label in classes:
-        tp: int = np.sum((y_pred == label) & (y_true == label))
-        fp: int = np.sum((y_pred == label) & (y_true != label))
-        fn: int = np.sum((y_pred != label) & (y_true == label))
+        tp = np.sum((y_pred == label) & (y_true == label))
+        fp = np.sum((y_pred == label) & (y_true != label))
+        fn = np.sum((y_pred != label) & (y_true == label))
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
         if precision + recall == 0:
-            f1 = 0.0
+            f1_scores[label] = 0.0
         else:
-            f1 = 2 * (precision * recall) / (precision + recall)
-        f1_scores.append(f1)
+            f1_scores[label] = 2 * (precision * recall) / (precision + recall)
+    return f1_scores
 
-    return float(np.mean(f1_scores))
+
+def calculate_macro_f1_score(y_true: NDArray, y_pred: NDArray) -> float:
+    """
+    Calculates the macro F1 score (unweighted mean of per-class F1 scores).
+    """
+    f1_scores = calculate_per_class_f1_score(y_true, y_pred)
+    return float(np.mean(list(f1_scores.values())))
 
 
 def calculate_binary_roc(

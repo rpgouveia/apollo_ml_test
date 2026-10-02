@@ -2,10 +2,13 @@ import sys
 import argparse
 import pandas as pd
 from pandas import DataFrame
+from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.preprocessing import LabelEncoder
 from src.data_processing import (
     data_loader,
     flatten_data,
-    clean_and_validate_data
+    clean_and_validate_data,
+    extract_features,
 )
 from src.eda import generate_eda_report
 from src.visualization import plot_tsne
@@ -48,7 +51,19 @@ def main():
     results_df = run_knn_pipeline(validated_df, max_k=15, n_splits=10)
     save_and_display_best_results(results_df)
     plot_f1_vs_k(results_df)
-    evaluate_best_models_roc(validated_df, best_k_cos=14, best_k_euc=14)
+
+    X = extract_features(validated_df)
+    y = LabelEncoder().fit_transform(validated_df["syndrome_id"].values)
+    groups = validated_df["subject_id"].values
+    cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
+    static_folds = list(cv.split(X, y, groups))
+
+    evaluate_best_models_roc(
+        validated_df,
+        best_k_cos=14,
+        best_k_euc=14,
+        folds=static_folds,
+    )
 
 
 if __name__ == "__main__":
