@@ -12,14 +12,11 @@ dependencies = [
     "numpy>=2.5.3",
     "pandas>=3.0.6",
     "scikit-learn>=1.9.1",
+    "seaborn>=0.13.2",
 ]
 
-[project.scripts]
-apollo-ml-test = "apollo_ml_test:main"
-
-[build-system]
-requires = ["uv_build>=0.12.21,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
 
 [dependency-groups]
 dev = [
