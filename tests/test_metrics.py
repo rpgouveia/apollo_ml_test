@@ -77,7 +77,19 @@ def test_f1_macro():
     assert f1_custom == pytest.approx(f1_sklearn)
 
 
-def test_top_k_accuracy():
+def test_f1_macro_missing_class():
+    """Ensures union1d correctly handles classes present in y_pred but missing in y_true."""
+    y_true = np.array([0, 0, 1, 1])
+    # Class 2 is predicted but does not exist in y_true
+    y_pred = np.array([0, 2, 1, 1]) 
+    
+    f1_custom = calculate_macro_f1_score(y_true, y_pred)
+    f1_sklearn = f1_score(y_true, y_pred, average='macro')
+    assert f1_custom == pytest.approx(f1_sklearn)
+
+
+@pytest.mark.parametrize("k", [1, 3, 5])
+def test_top_k_accuracy(k):
     """Ensures custom Top-K accuracy matches sklearn (using continuous scores to avoid tie-breaks)."""
     rng = np.random.default_rng(42)
     n_classes = 10
@@ -89,12 +101,9 @@ def test_top_k_accuracy():
     # Rank the predictions for the custom implementation descendingly (highest score first)
     y_pred_ranked = np.argsort(y_scores, axis=1)[:, ::-1]
 
-    for k in [1, 3, 5]:
-        top_k_custom = calculate_top_k_accuracy(y_true, y_pred_ranked, k=k)
-
-        # sklearn requires the full continuous score matrix and all possible labels
-        top_k_sklearn = top_k_accuracy_score(
-            y_true, y_scores, k=k, labels=np.arange(n_classes)
-        )
-
-        assert top_k_custom == pytest.approx(top_k_sklearn)
+    top_k_custom = calculate_top_k_accuracy(y_true, y_pred_ranked, k=k)
+    
+    # sklearn requires the full continuous score matrix and all possible labels
+    top_k_sklearn = top_k_accuracy_score(y_true, y_scores, k=k, labels=np.arange(n_classes))
+    
+    assert top_k_custom == pytest.approx(top_k_sklearn)

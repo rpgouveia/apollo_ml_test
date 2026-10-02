@@ -2,7 +2,6 @@ import sys
 import argparse
 import pandas as pd
 from pandas import DataFrame
-from scripts.compare_roc import generate_comparison_table
 from src.data_processing import data_loader, flatten_data, clean_and_validate_data
 from src.eda import generate_eda_report
 from src.visualization import plot_tsne
@@ -36,7 +35,6 @@ def main():
     validated_df: DataFrame = clean_and_validate_data(dataframe)
     generate_eda_report(validated_df)
     plot_tsne(validated_df)
-    generate_comparison_table()
 
 
 if __name__ == "__main__":
