@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
+import matplotlib.pyplot as plt
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler, Normalizer, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
@@ -78,7 +79,7 @@ def run_knn_pipeline(
                         X_train = scaler_obj.fit_transform(X_train)
                         X_test = scaler_obj.transform(X_test)
 
-                    # weights='distance' solves arbitrary index-based tie-breaking for small k (e.g., k=2)
+                    # weights='distance' solves arbitrary index-based tie-breaking for small k
                     knn = KNeighborsClassifier(
                         n_neighbors=k, metric=metric, weights="distance"
                     )
@@ -114,27 +115,140 @@ def run_knn_pipeline(
                     fold_top5.append(top5)
                     fold_auc.append(macro_auc)
 
-                results.append(
-                    {
-                        "Scaler": scaler_name,
-                        "Distance": metric,
-                        "k": k,
-                        "Top-1 Acc (Mean)": np.mean(fold_top1),
-                        "Top-1 Acc (Std)": np.std(fold_top1),
-                        "Top-5 Acc (Mean)": np.mean(fold_top5),
-                        "Top-5 Acc (Std)": np.std(fold_top5),
-                        "Macro F1 (Mean)": np.mean(fold_f1),
-                        "Macro F1 (Std)": np.std(fold_f1),
-                        "Macro AUC (Mean)": np.mean(fold_auc),
-                        "Macro AUC (Std)": np.std(fold_auc),
-                    }
-                )
+                # ddof adjusted for sample standard deviation
+                # https://numpy.org/doc/stable/reference/generated/numpy.std.html
+                # fold_f1 saved for pairwise comparison
+                results.append({
+                    'Scaler': scaler_name,
+                    'Distance': metric,
+                    'k': k,
+                    'Top-1 Acc (Mean)': np.mean(fold_top1),
+                    'Top-1 Acc (Std)': np.std(fold_top1, ddof=1),
+                    'Top-5 Acc (Mean)': np.mean(fold_top5),
+                    'Top-5 Acc (Std)': np.std(fold_top5, ddof=1),
+                    'Macro F1 (Mean)': np.mean(fold_f1),
+                    'Macro F1 (Std)': np.std(fold_f1, ddof=1),
+                    'Macro AUC (Mean)': np.mean(fold_auc),
+                    'Macro AUC (Std)': np.std(fold_auc, ddof=1),
+                    'Fold F1s': fold_f1
+                })
 
                 print(
                     f"k={k:02d} | F1: {np.mean(fold_f1):.4f}±{np.std(fold_f1):.4f} | AUC: {np.mean(fold_auc):.4f}±{np.std(fold_auc):.4f}"
                 )
 
     return pd.DataFrame(results)
+
+
+def plot_f1_vs_k(results_df: DataFrame, output_dir: str = 'outputs') -> None:
+    """Generates the F1 stabilization plot as a function of k, with standard deviation bands."""
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    
+    raw_df = results_df[results_df['Scaler'] == 'Raw Data']
+    
+    plt.figure(figsize=(10, 6))
+    colors = {'cosine': 'blue', 'euclidean': 'orange'}
+    
+    for metric in ['cosine', 'euclidean']:
+        sub = raw_df[raw_df['Distance'] == metric]
+        k_vals = sub['k'].values
+        f1_mean = sub['Macro F1 (Mean)'].values
+        f1_std = sub['Macro F1 (Std)'].values
+        
+        plt.plot(k_vals, f1_mean, label=f'{metric.capitalize()}', color=colors[metric], marker='o')
+        plt.fill_between(k_vals, f1_mean - f1_std, f1_mean + f1_std, color=colors[metric], alpha=0.2)
+        
+    plt.title('Macro F1 Score vs. k Neighbors (Raw Data)')
+    plt.xlabel('Number of Neighbors (k)')
+    plt.ylabel('Macro F1 Score')
+    plt.xticks(range(1, 16))
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    
+    output_path = os.path.join(output_dir, 'f1_vs_k_raw_data.png')
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"[+] F1 vs k plot saved to: {output_path}")
+
+
+def evaluate_best_models_roc(dataframe: DataFrame, best_k_cos: int, best_k_euc: int, output_dir: str = 'outputs') -> None:
+    """Evaluates the best models on the raw data to generate the interpolated ROC curve and per-class metrics."""
+    X = extract_features(dataframe)
+    le = LabelEncoder()
+    y = le.fit_transform(dataframe['syndrome_id'].values)
+    groups = dataframe['subject_id'].values
+    classes = le.classes_
+    
+    cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
+    folds = list(cv.split(X, y, groups))
+    
+    configs = {'Cosine': best_k_cos, 'Euclidean': best_k_euc}
+    mean_fpr = np.linspace(0, 1, 100)
+    roc_data = {}
+    f1_fold_history = {}
+    
+    for metric_name, k in configs.items():
+        tprs = []
+        aucs = []
+        fold_f1_scores = []
+        
+        for train_idx, test_idx in folds:
+            X_train, X_test = X[train_idx], X[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+            
+            knn = KNeighborsClassifier(n_neighbors=k, metric=metric_name.lower(), weights='distance')
+            knn.fit(X_train, y_train)
+            y_probs = knn.predict_proba(X_test)
+            y_pred = knn.classes_[np.argsort(-y_probs, axis=1, kind='mergesort')[:, 0]]
+            
+            fold_f1_scores.append(calculate_macro_f1_score(y_test, y_pred))
+            
+            # OVR ROC Calculation para o Fold
+            fold_tprs = []
+            for idx, cls in enumerate(knn.classes_):
+                y_true_bin = (y_test == cls).astype(int)
+                if np.sum(y_true_bin) > 0:
+                    auc_val, fpr_val, tpr_val = calculate_binary_roc(y_true_bin, y_probs[:, idx])
+                    # Interpolação para garantir o mesmo eixo X (FPR) em todos os folds
+                    interp_tpr = np.interp(mean_fpr, fpr_val, tpr_val)
+                    interp_tpr[0] = 0.0
+                    fold_tprs.append(interp_tpr)
+                    
+            # Média das classes (Macro) para o fold atual
+            tprs.append(np.mean(fold_tprs, axis=0))
+        
+        f1_fold_history[metric_name] = fold_f1_scores
+        roc_data[metric_name] = np.mean(tprs, axis=0) # Média dos 10 folds
+    
+    # 1. Comparação Pareada (Paired Win-Rate)
+    wins_cos = sum(1 for c, e in zip(f1_fold_history['Cosine'], f1_fold_history['Euclidean']) if c > e)
+    ties = sum(1 for c, e in zip(f1_fold_history['Cosine'], f1_fold_history['Euclidean']) if c == e)
+    wins_euc = 10 - wins_cos - ties
+    
+    print(f"\n=== Paired Comparison (Fold-by-Fold on Raw Data) ===")
+    print(f"Cosine wins: {wins_cos}/10 folds")
+    print(f"Euclidean wins: {wins_euc}/10 folds")
+    print(f"Ties: {ties}/10 folds")
+    
+    # 2. Plotting da Curva ROC Média
+    plt.figure(figsize=(10, 8))
+    for metric_name, mean_tpr in roc_data.items():
+        mean_tpr[-1] = 1.0 # Garante convergência no topo direito
+        macro_auc = np.trapezoid(mean_tpr, mean_fpr)
+        plt.plot(mean_fpr, mean_tpr, label=f'{metric_name} (Macro AUC = {macro_auc:.4f})', lw=2)
+        
+    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='gray', label='Random Guess')
+    plt.title('10-Fold CV Averaged ROC Curves (OVR Macro)')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc='lower right')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    
+    output_path = os.path.join(output_dir, 'roc_curves_comparison.png')
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"[+] ROC curves plot saved to: {output_path}\n")
 
 
 def save_and_display_best_results(

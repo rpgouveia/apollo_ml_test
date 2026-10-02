@@ -2,10 +2,19 @@ import sys
 import argparse
 import pandas as pd
 from pandas import DataFrame
-from src.classification import run_knn_pipeline, save_and_display_best_results
-from src.data_processing import data_loader, flatten_data, clean_and_validate_data
+from src.data_processing import (
+    data_loader,
+    flatten_data,
+    clean_and_validate_data
+)
 from src.eda import generate_eda_report
 from src.visualization import plot_tsne
+from src.classification import (
+    run_knn_pipeline,
+    save_and_display_best_results,
+    plot_f1_vs_k,
+    evaluate_best_models_roc
+)
 
 
 def main():
@@ -38,6 +47,8 @@ def main():
     plot_tsne(validated_df)
     results_df = run_knn_pipeline(validated_df, max_k=15, n_splits=10)
     save_and_display_best_results(results_df)
+    plot_f1_vs_k(results_df)
+    evaluate_best_models_roc(validated_df, best_k_cos=14, best_k_euc=14)
 
 
 if __name__ == "__main__":
