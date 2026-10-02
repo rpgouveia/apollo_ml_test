@@ -8,12 +8,12 @@ from src.visualization import plot_tsne
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Load and process data.')
+    parser = argparse.ArgumentParser(description="Load and process data.")
     parser.add_argument(
-        '--data-path',
+        "--data-path",
         type=str,
-        default='data/mini_gm_public_v0.1.p',
-        help='Path to the data file.'
+        default="data/mini_gm_public_v0.1.p",
+        help="Path to the data file.",
     )
     args = parser.parse_args()
 
@@ -36,5 +36,6 @@ def main():
     generate_eda_report(validated_df)
     plot_tsne(validated_df)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
