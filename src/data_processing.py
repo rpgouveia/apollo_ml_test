@@ -3,8 +3,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pandas import DataFrame, Series
 
-
-def data_loader(file_path: str):
+def data_loader(file_path: str) -> dict:
     """Carrega dados de um arquivo pickle."""
     with open(file_path, 'rb') as file:
         data: dict = pickle.load(file)
@@ -48,16 +47,28 @@ def remove_corrupted_embeddings(dataframe: DataFrame) -> DataFrame:
     return dataframe[mask].copy()
 
 def clean_and_validate_data(dataframe: DataFrame) -> DataFrame:
-    """Aplica todas as funções de limpeza e validação de dados."""
-    print("Iniciando Validação de Integridade")
-    initial_rows = len(dataframe)
-    dataframe = remove_missing_values(dataframe)
-    dataframe = remove_duplicate_images(dataframe)
-    dataframe = filter_by_embedding_dimension(dataframe)
-    dataframe = remove_corrupted_embeddings(dataframe)
-    final_rows = len(dataframe)
-    removed_rows = initial_rows - final_rows
+    """Aplica todas as funções de limpeza e validação de dados detalhadamente."""
+    print("\n=== Validação de Integridade ===")
+    initial_rows: int = len(dataframe)
+    
+    df_no_missing: DataFrame = remove_missing_values(dataframe)
+    missing_removed: int = initial_rows - len(df_no_missing)
+    
+    df_no_duplicates: DataFrame = remove_duplicate_images(df_no_missing)
+    duplicates_removed: int = len(df_no_missing) - len(df_no_duplicates)
+    
+    df_valid_dim: DataFrame = filter_by_embedding_dimension(df_no_duplicates)
+    dimension_removed: int = len(df_no_duplicates) - len(df_valid_dim)
+    
+    df_clean: DataFrame = remove_corrupted_embeddings(df_valid_dim)
+    corrupted_removed: int = len(df_valid_dim) - len(df_clean)
+    
+    final_rows: int = len(df_clean)
+    
     print(f"Total de registros originais: {initial_rows}")
-    print(f"Registros inválidos/inconsistentes removidos: {removed_rows}")
+    print(f" - Valores nulos removidos: {missing_removed}")
+    print(f" - 'image_id' duplicados removidos: {duplicates_removed}")
+    print(f" - Dimensão diferente de 320 removidos: {dimension_removed}")
+    print(f" - Embeddings com NaN/Inf removidos: {corrupted_removed}")
     print(f"Total de registros íntegros: {final_rows}")
-    return dataframe
+    return df_clean

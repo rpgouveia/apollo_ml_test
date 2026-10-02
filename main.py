@@ -2,8 +2,7 @@ import argparse
 import pandas as pd
 from pandas import DataFrame
 from src.data_processing import data_loader, flatten_data, clean_and_validate_data
-from src.eda import check_class_balance, generate_dataset_statistics
-
+from src.eda import generate_eda_report
 
 def main():
     parser = argparse.ArgumentParser(description='Carregar e processar dados.')
@@ -19,24 +18,19 @@ def main():
     try:
         data: dict = data_loader(args.data_path)
         print("Dados carregados com sucesso.")
-        flattened_data: list = flatten_data(data)
-        df: DataFrame = pd.DataFrame(flattened_data)
-        print("Dados achatados e convertidos para DataFrame com sucesso.\n")
-
-        validated_df: DataFrame = clean_and_validate_data(df)
-        print(f"Total de registros válidos: {len(validated_df)}")
-        print("Validação concluída.\n")
-
-        generate_dataset_statistics(validated_df)
-
-        print("\nVerificando balanceamento das classes:")
-        class_balance: DataFrame = check_class_balance(validated_df, target_column='syndrome_id')
-
     except FileNotFoundError:
         print(f"Erro: O arquivo '{args.data_path}' não foi encontrado.")
+        return
     except Exception as e:
         print(f"Ocorreu um erro ao carregar os dados: {e}")
+        return
+
+    flattened_data: list = flatten_data(data)
+    dataframe: DataFrame = pd.DataFrame(flattened_data)
+    print("Dados achatados e convertidos para DataFrame com sucesso.")
+
+    validated_df: DataFrame = clean_and_validate_data(dataframe)
+    generate_eda_report(validated_df)
 
 if __name__ == '__main__':
     main()
-
