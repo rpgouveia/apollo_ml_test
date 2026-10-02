@@ -32,7 +32,7 @@ def print_fold_distribution(
 def run_knn_pipeline(
     dataframe: DataFrame, max_k: int = 15, n_splits: int = 10
 ) -> DataFrame:
-    """Runs 10-fold Stratified Group CV for KNN across multiple k values, distances, and scalers."""
+    """Runs 10-fold Stratified Group CV for KNN across multiple configs."""
     X = extract_features(dataframe)
 
     le = LabelEncoder()
@@ -41,7 +41,12 @@ def run_knn_pipeline(
 
     cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
+    # Pre-compute folds to guarantee exact same splits across all configurations
+    # and save redundant computation inside the loops.
+    folds = list(cv.split(X, y, groups))
+
     scalers = {
+        "Raw Data": None,
         "StandardScaler": StandardScaler(),
         "L2 Normalizer": Normalizer(norm="l2"),
     }
@@ -49,9 +54,6 @@ def run_knn_pipeline(
     results = []
 
     print(f"\n=== Starting {n_splits}-Fold CV KNN Evaluation ===")
-    print(
-        f"Testing k from 1 to {max_k}, Distances: {metrics_list}, Scalers: {list(scalers.keys())}"
-    )
 
     for scaler_name, scaler_obj in scalers.items():
         for metric in metrics_list:
@@ -60,42 +62,42 @@ def run_knn_pipeline(
             for k in range(1, max_k + 1):
                 fold_f1, fold_top1, fold_top5, fold_auc = [], [], [], []
 
-                for fold_idx, (train_idx, test_idx) in enumerate(
-                    cv.split(X, y, groups)
-                ):
+                for fold_idx, (train_idx, test_idx) in enumerate(folds):
                     X_train, X_test = X[train_idx], X[test_idx]
                     y_train, y_test = y[train_idx], y[test_idx]
 
                     if (
-                        fold_idx == 1
+                        fold_idx == 0
                         and k == 1
                         and metric == metrics_list[0]
                         and scaler_name == list(scalers.keys())[0]
                     ):
-                        print_fold_distribution(y_train, y_test, fold_idx)
+                        print_fold_distribution(y_train, y_test, fold_idx + 1)
 
-                    # Scaling
-                    X_train_scaled = scaler_obj.fit_transform(X_train)
-                    X_test_scaled = scaler_obj.transform(X_test)
+                    if scaler_obj is not None:
+                        X_train = scaler_obj.fit_transform(X_train)
+                        X_test = scaler_obj.transform(X_test)
 
-                    # Train KNN
-                    knn = KNeighborsClassifier(n_neighbors=k, metric=metric)
-                    knn.fit(X_train_scaled, y_train)
+                    # weights='distance' solves arbitrary index-based tie-breaking for small k (e.g., k=2)
+                    knn = KNeighborsClassifier(
+                        n_neighbors=k, metric=metric, weights="distance"
+                    )
+                    knn.fit(X_train, y_train)
 
-                    # Predict
-                    y_pred = knn.predict(X_test_scaled)
-                    y_probs = knn.predict_proba(X_test_scaled)
+                    y_probs = knn.predict_proba(X_test)
 
-                    # Rank classes for Top-K
-                    sorted_indices = np.argsort(y_probs, axis=1)[:, ::-1]
+                    # Single source of truth for predictions.
+                    # Stable sort descending (-y_probs with mergesort) safely mimics argmax tie-breaking behavior.
+                    sorted_indices = np.argsort(-y_probs, axis=1, kind="mergesort")
                     y_pred_ranked = knn.classes_[sorted_indices]
 
-                    # Custom metrics
+                    # Force F1 to use strictly the top ranked class from our custom matrix
+                    y_pred = y_pred_ranked[:, 0]
+
                     f1 = calculate_macro_f1_score(y_test, y_pred)
                     top1 = calculate_top_k_accuracy(y_test, y_pred_ranked, k=1)
                     top5 = calculate_top_k_accuracy(y_test, y_pred_ranked, k=5)
 
-                    # OVR Macro AUC
                     auc_classes = []
                     for idx, cls in enumerate(knn.classes_):
                         y_true_bin = (y_test == cls).astype(int)
@@ -117,32 +119,37 @@ def run_knn_pipeline(
                         "Scaler": scaler_name,
                         "Distance": metric,
                         "k": k,
-                        "Top-1 Acc": np.mean(fold_top1),
-                        "Top-5 Acc": np.mean(fold_top5),
-                        "Macro F1": np.mean(fold_f1),
-                        "Macro AUC": np.mean(fold_auc),
+                        "Top-1 Acc (Mean)": np.mean(fold_top1),
+                        "Top-1 Acc (Std)": np.std(fold_top1),
+                        "Top-5 Acc (Mean)": np.mean(fold_top5),
+                        "Top-5 Acc (Std)": np.std(fold_top5),
+                        "Macro F1 (Mean)": np.mean(fold_f1),
+                        "Macro F1 (Std)": np.std(fold_f1),
+                        "Macro AUC (Mean)": np.mean(fold_auc),
+                        "Macro AUC (Std)": np.std(fold_auc),
                     }
                 )
 
                 print(
-                    f"k={k:02d} | F1: {np.mean(fold_f1):.4f} | AUC: {np.mean(fold_auc):.4f}"
+                    f"k={k:02d} | F1: {np.mean(fold_f1):.4f}±{np.std(fold_f1):.4f} | AUC: {np.mean(fold_auc):.4f}±{np.std(fold_auc):.4f}"
                 )
 
-    results_df = pd.DataFrame(results)
-    return results_df
+    return pd.DataFrame(results)
 
 
 def save_and_display_best_results(
     results_df: DataFrame, output_dir: str = "outputs"
 ) -> None:
-    """Finds the optimal k for each configuration, displays summary, and saves to CSV."""
+    """Finds the optimal k for each configuration based on Macro F1, displays summary, and saves to CSV."""
     os.makedirs(output_dir, exist_ok=True)
     csv_path = os.path.join(output_dir, "knn_evaluation_results.csv")
     results_df.to_csv(csv_path, index=False)
 
     print("\n=== Optimal Model Configurations ===")
+    print(
+        "* Optimization Criterion: Macro F1 Score (to account for class imbalance) *\n"
+    )
 
-    # Group by both Scaler and Distance
     combinations = results_df[["Scaler", "Distance"]].drop_duplicates()
 
     for _, row in combinations.iterrows():
@@ -152,14 +159,22 @@ def save_and_display_best_results(
             (results_df["Scaler"] == scaler) & (results_df["Distance"] == metric)
         ]
 
-        # Selecting best k based on Top-1 Accuracy
-        best_row = subset.loc[subset["Top-1 Acc"].idxmax()]
+        # Select best k using Macro F1
+        best_row = subset.loc[subset["Macro F1 (Mean)"].idxmax()]
 
-        print(f"\n[{scaler}] + [{metric.upper()}]:")
+        print(f"[{scaler}] + [{metric.upper()}]:")
         print(f" - Optimal k : {best_row['k']}")
-        print(f" - Top-1 Acc : {best_row['Top-1 Acc']:.4f}")
-        print(f" - Top-5 Acc : {best_row['Top-5 Acc']:.4f}")
-        print(f" - Macro F1  : {best_row['Macro F1']:.4f}")
-        print(f" - Macro AUC : {best_row['Macro AUC']:.4f}")
+        print(
+            f" - Macro F1  : {best_row['Macro F1 (Mean)']:.4f} ± {best_row['Macro F1 (Std)']:.4f}"
+        )
+        print(
+            f" - Top-1 Acc : {best_row['Top-1 Acc (Mean)']:.4f} ± {best_row['Top-1 Acc (Std)']:.4f}"
+        )
+        print(
+            f" - Top-5 Acc : {best_row['Top-5 Acc (Mean)']:.4f} ± {best_row['Top-5 Acc (Std)']:.4f}"
+        )
+        print(
+            f" - Macro AUC : {best_row['Macro AUC (Mean)']:.4f} ± {best_row['Macro AUC (Std)']:.4f}\n"
+        )
 
-    print(f"\n[+] Full evaluation results saved to: {csv_path}\n")
+    print(f"[+] Full evaluation results saved to: {csv_path}\n")
