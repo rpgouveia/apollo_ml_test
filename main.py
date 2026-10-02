@@ -2,6 +2,7 @@ import sys
 import argparse
 import pandas as pd
 from pandas import DataFrame
+from src.classification import run_knn_pipeline, save_and_display_best_results
 from src.data_processing import data_loader, flatten_data, clean_and_validate_data
 from src.eda import generate_eda_report
 from src.visualization import plot_tsne
@@ -35,6 +36,8 @@ def main():
     validated_df: DataFrame = clean_and_validate_data(dataframe)
     generate_eda_report(validated_df)
     plot_tsne(validated_df)
+    results_df = run_knn_pipeline(validated_df, max_k=15, n_splits=10)
+    save_and_display_best_results(results_df)
 
 
 if __name__ == "__main__":
