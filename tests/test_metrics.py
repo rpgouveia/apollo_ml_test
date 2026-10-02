@@ -1,33 +1,51 @@
 import numpy as np
 import pytest
-from sklearn.metrics import roc_auc_score
-from src.metrics import calculate_binary_roc
+from sklearn.metrics import (
+    roc_auc_score,
+    f1_score,
+    top_k_accuracy_score
+)
+from src.metrics import (
+    calculate_binary_roc,
+    calculate_macro_f1_score,
+    calculate_top_k_accuracy,
+)
 
 
 def test_roc_auc_continuous():
-    """Ensures the accuracy of the ROC and AUC in a scenario with distinct continuous values."""
-    np.random.seed(42)
-    y_true = np.random.randint(0, 2, 100)
-    y_scores = np.random.rand(100)
+    """Ensures the accuracy of the ROC and AUC with distinct continuous values (with signal)."""
+    rng = np.random.default_rng(42)
+    y_true = rng.integers(0, 2, 100)
+    y_scores = rng.random(100) + 0.3 * y_true
 
     auc_custom, _, _ = calculate_binary_roc(y_true, y_scores)
     auc_sklearn = roc_auc_score(y_true, y_scores)
-
     assert auc_custom == pytest.approx(auc_sklearn)
 
 
 def test_roc_auc_discrete():
     """Ensures that scores with ties converge with sklearn."""
-    np.random.seed(42)
-    y_true = np.random.randint(0, 2, 100)
-
-    # Rounding to multiples of 0.1 to force ties and constant blocks
-    y_scores = np.round(np.random.rand(100), 1)
+    rng = np.random.default_rng(42)
+    y_true = rng.integers(0, 2, 100)
+    y_scores = np.round(rng.random(100) + 0.3 * y_true, 1)
 
     auc_custom, _, _ = calculate_binary_roc(y_true, y_scores)
     auc_sklearn = roc_auc_score(y_true, y_scores)
-
     assert auc_custom == pytest.approx(auc_sklearn)
+
+
+def test_roc_auc_order_invariance():
+    """Ensures that identical blocks of tied scores yield the same AUC regardless of sample order."""
+    rng = np.random.default_rng(42)
+    y_true = rng.integers(0, 2, 100)
+    y_scores = np.round(rng.random(100) + 0.3 * y_true, 1)
+
+    auc_original, _, _ = calculate_binary_roc(y_true, y_scores)
+
+    # Shuffle the dataset
+    indices = rng.permutation(len(y_true))
+    auc_shuffled, _, _ = calculate_binary_roc(y_true[indices], y_scores[indices])
+    assert auc_original == pytest.approx(auc_shuffled)
 
 
 def test_roc_auc_all_equal():
@@ -36,10 +54,7 @@ def test_roc_auc_all_equal():
     y_scores = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
 
     auc_custom, _, _ = calculate_binary_roc(y_true, y_scores)
-    auc_sklearn = roc_auc_score(y_true, y_scores)
-
     assert auc_custom == pytest.approx(0.5)
-    assert auc_custom == pytest.approx(auc_sklearn)
 
 
 def test_roc_auc_perfect_separation():
@@ -48,7 +63,38 @@ def test_roc_auc_perfect_separation():
     y_scores = np.array([0.9, 0.8, 0.7, 0.3, 0.2, 0.1])
 
     auc_custom, _, _ = calculate_binary_roc(y_true, y_scores)
-    auc_sklearn = roc_auc_score(y_true, y_scores)
-
     assert auc_custom == pytest.approx(1.0)
-    assert auc_custom == pytest.approx(auc_sklearn)
+
+
+def test_f1_macro():
+    """Ensures custom macro F1 matches sklearn implementation."""
+    rng = np.random.default_rng(42)
+    y_true = rng.integers(0, 10, 100)
+    y_pred = rng.integers(0, 10, 100)
+
+    f1_custom = calculate_macro_f1_score(y_true, y_pred)
+    f1_sklearn = f1_score(y_true, y_pred, average="macro")
+    assert f1_custom == pytest.approx(f1_sklearn)
+
+
+def test_top_k_accuracy():
+    """Ensures custom Top-K accuracy matches sklearn (using continuous scores to avoid tie-breaks)."""
+    rng = np.random.default_rng(42)
+    n_classes = 10
+    y_true = rng.integers(0, n_classes, 100)
+
+    # Continuous random scores to ensure deterministic ranking for both functions
+    y_scores = rng.random((100, n_classes))
+
+    # Rank the predictions for the custom implementation descendingly (highest score first)
+    y_pred_ranked = np.argsort(y_scores, axis=1)[:, ::-1]
+
+    for k in [1, 3, 5]:
+        top_k_custom = calculate_top_k_accuracy(y_true, y_pred_ranked, k=k)
+
+        # sklearn requires the full continuous score matrix and all possible labels
+        top_k_sklearn = top_k_accuracy_score(
+            y_true, y_scores, k=k, labels=np.arange(n_classes)
+        )
+
+        assert top_k_custom == pytest.approx(top_k_sklearn)
