@@ -1,7 +1,7 @@
 [project]
 name = "apollo-ml-test"
 version = "0.1.0"
-description = "Add your description here"
+description = "Apollo Machine Learning Test"
 readme = "README.md"
 authors = [
     { name = "Renato Gouveia", email = "rpgouveia@gmail.com" }
