@@ -4,13 +4,13 @@ from numpy.typing import NDArray
 from pandas import DataFrame, Series
 
 def data_loader(file_path: str) -> dict:
-    """Carrega dados de um arquivo pickle."""
+    """Loads data from a pickle file."""
     with open(file_path, 'rb') as file:
         data: dict = pickle.load(file)
     return data
 
 def flatten_data(data: dict) -> list:
-    """Achata a estrutura de dados para uma lista de embeddings."""
+    """Flattens the data structure into a list of embeddings."""
     flattened_data: list = []
     for syndrome_id, subjects in data.items():
         for subject_id, images in subjects.items():
@@ -24,31 +24,31 @@ def flatten_data(data: dict) -> list:
     return flattened_data
 
 def remove_missing_values(dataframe: DataFrame) -> DataFrame:
-    """Remove linhas com valores nulos no DataFrame."""
+    """Removes rows with missing values in the DataFrame."""
     return dataframe.dropna().copy()
 
 def remove_duplicate_images(dataframe: DataFrame) -> DataFrame:
-    """Remove registros com 'image_id' duplicados."""
+    """Removes records with duplicate 'image_id'."""
     return dataframe.drop_duplicates(subset=['image_id']).copy()
 
 def filter_by_embedding_dimension(dataframe: DataFrame, expected_dimension: int = 320) -> DataFrame:
-    """Mantém apenas as linhas cujo embedding tenha a dimensão esperada."""
+    """Keeps only rows where the embedding has the expected dimension."""
     mask: Series[bool] = dataframe['embedding'].apply(lambda x: len(x) == expected_dimension)
     return dataframe[mask].copy()
 
 def is_valid_vector(vector: list) -> bool:
-    """Verifica se há valores NaN ou Infinitos dentro dos vetores."""
+    """Checks if there are NaN or Infinite values within the vectors."""
     array: NDArray = np.array(vector)
     return not (np.isnan(array).any() or np.isinf(array).any())
 
 def remove_corrupted_embeddings(dataframe: DataFrame) -> DataFrame:
-    """Remove linhas com embeddings corrompidos."""
+    """Removes rows with corrupted embeddings."""
     mask: Series[bool] = dataframe['embedding'].apply(is_valid_vector)
     return dataframe[mask].copy()
 
 def clean_and_validate_data(dataframe: DataFrame) -> DataFrame:
-    """Aplica todas as funções de limpeza e validação de dados detalhadamente."""
-    print("\n=== Validação de Integridade ===")
+    """Applies all data cleaning and validation functions step-by-step."""
+    print("\n=== Data Integrity Validation ===")
     initial_rows: int = len(dataframe)
     
     df_no_missing: DataFrame = remove_missing_values(dataframe)
@@ -65,10 +65,11 @@ def clean_and_validate_data(dataframe: DataFrame) -> DataFrame:
     
     final_rows: int = len(df_clean)
     
-    print(f"Total de registros originais: {initial_rows}")
-    print(f" - Valores nulos removidos: {missing_removed}")
-    print(f" - 'image_id' duplicados removidos: {duplicates_removed}")
-    print(f" - Dimensão diferente de 320 removidos: {dimension_removed}")
-    print(f" - Embeddings com NaN/Inf removidos: {corrupted_removed}")
-    print(f"Total de registros íntegros: {final_rows}")
+    print(f"Total original records: {initial_rows}")
+    print(f" - Missing values removed: {missing_removed}")
+    print(f" - Duplicate 'image_id' removed: {duplicates_removed}")
+    print(f" - Invalid dimensions (not 320) removed: {dimension_removed}")
+    print(f" - Corrupted embeddings (NaN/Inf) removed: {corrupted_removed}")
+    print(f"Total valid records: {final_rows}")
+    
     return df_clean

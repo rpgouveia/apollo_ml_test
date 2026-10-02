@@ -5,31 +5,32 @@ from src.data_processing import data_loader, flatten_data, clean_and_validate_da
 from src.eda import generate_eda_report
 
 def main():
-    parser = argparse.ArgumentParser(description='Carregar e processar dados.')
+    parser = argparse.ArgumentParser(description='Load and process data.')
     parser.add_argument(
         '--data-path',
         type=str,
-        default='data/mini_gm_public_v0.1.p',
-        help='Caminho para o arquivo de dados'
+        default='data/mini_gm_public_v0_1.p',
+        help='Path to the data file.'
     )
     args = parser.parse_args()
 
-    print(f"Carregando dados do arquivo: {args.data_path}")
+    print(f"Loading data from file: {args.data_path}")
     try:
         data: dict = data_loader(args.data_path)
-        print("Dados carregados com sucesso.")
+        print("Data loaded successfully.")
     except FileNotFoundError:
-        print(f"Erro: O arquivo '{args.data_path}' não foi encontrado.")
+        print(f"Error: File '{args.data_path}' not found.")
         return
     except Exception as e:
-        print(f"Ocorreu um erro ao carregar os dados: {e}")
+        print(f"An error occurred while loading the data: {e}")
         return
 
     flattened_data: list = flatten_data(data)
     dataframe: DataFrame = pd.DataFrame(flattened_data)
-    print("Dados achatados e convertidos para DataFrame com sucesso.")
+    print("Data successfully flattened and converted to DataFrame.")
 
     validated_df: DataFrame = clean_and_validate_data(dataframe)
+    
     generate_eda_report(validated_df)
 
 if __name__ == '__main__':
