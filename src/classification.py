@@ -178,7 +178,6 @@ def evaluate_best_models_roc(dataframe: DataFrame, best_k_cos: int, best_k_euc: 
     le = LabelEncoder()
     y = le.fit_transform(dataframe['syndrome_id'].values)
     groups = dataframe['subject_id'].values
-    classes = le.classes_
     
     cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
     folds = list(cv.split(X, y, groups))
@@ -190,7 +189,6 @@ def evaluate_best_models_roc(dataframe: DataFrame, best_k_cos: int, best_k_euc: 
     
     for metric_name, k in configs.items():
         tprs = []
-        aucs = []
         fold_f1_scores = []
         
         for train_idx, test_idx in folds:
@@ -204,24 +202,24 @@ def evaluate_best_models_roc(dataframe: DataFrame, best_k_cos: int, best_k_euc: 
             
             fold_f1_scores.append(calculate_macro_f1_score(y_test, y_pred))
             
-            # OVR ROC Calculation para o Fold
+            # OVR ROC Calculation for the Fold
             fold_tprs = []
             for idx, cls in enumerate(knn.classes_):
                 y_true_bin = (y_test == cls).astype(int)
                 if np.sum(y_true_bin) > 0:
                     auc_val, fpr_val, tpr_val = calculate_binary_roc(y_true_bin, y_probs[:, idx])
-                    # Interpolação para garantir o mesmo eixo X (FPR) em todos os folds
+                    # Interpolation to ensure the same X-axis (FPR) across all folds
                     interp_tpr = np.interp(mean_fpr, fpr_val, tpr_val)
                     interp_tpr[0] = 0.0
                     fold_tprs.append(interp_tpr)
                     
-            # Média das classes (Macro) para o fold atual
+            # Average across classes (Macro) for the current fold
             tprs.append(np.mean(fold_tprs, axis=0))
         
         f1_fold_history[metric_name] = fold_f1_scores
-        roc_data[metric_name] = np.mean(tprs, axis=0) # Média dos 10 folds
+        roc_data[metric_name] = np.mean(tprs, axis=0) # Average of the 10 folds
     
-    # 1. Comparação Pareada (Paired Win-Rate)
+    # 1. Paired Comparison (Paired Win-Rate)
     wins_cos = sum(1 for c, e in zip(f1_fold_history['Cosine'], f1_fold_history['Euclidean']) if c > e)
     ties = sum(1 for c, e in zip(f1_fold_history['Cosine'], f1_fold_history['Euclidean']) if c == e)
     wins_euc = 10 - wins_cos - ties
@@ -231,10 +229,10 @@ def evaluate_best_models_roc(dataframe: DataFrame, best_k_cos: int, best_k_euc: 
     print(f"Euclidean wins: {wins_euc}/10 folds")
     print(f"Ties: {ties}/10 folds")
     
-    # 2. Plotting da Curva ROC Média
+    # 2. Plotting the Averaged ROC Curve
     plt.figure(figsize=(10, 8))
     for metric_name, mean_tpr in roc_data.items():
-        mean_tpr[-1] = 1.0 # Garante convergência no topo direito
+        mean_tpr[-1] = 1.0 # Ensures convergence at the top right
         macro_auc = np.trapezoid(mean_tpr, mean_fpr)
         plt.plot(mean_fpr, mean_tpr, label=f'{metric_name} (Macro AUC = {macro_auc:.4f})', lw=2)
         
