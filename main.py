@@ -2,6 +2,7 @@ import argparse
 import pandas as pd
 from pandas import DataFrame
 from src.data_processing import data_loader, flatten_data, clean_and_validate_data
+from src.eda import check_class_balance
 
 
 def main():
@@ -25,6 +26,9 @@ def main():
         validated_df: DataFrame = clean_and_validate_data(df)
         print(f"Total de registros válidos: {len(validated_df)}")
         print("Validação concluída.\n")
+
+        print("Verificando balanceamento das classes:")
+        class_balance: DataFrame = check_class_balance(validated_df, target_column='syndrome_id')
 
     except FileNotFoundError:
         print(f"Erro: O arquivo '{args.data_path}' não foi encontrado.")
