@@ -73,3 +73,7 @@ def clean_and_validate_data(dataframe: DataFrame) -> DataFrame:
     print(f"Total valid records: {final_rows}")
     
     return df_clean
+
+def extract_features(dataframe: DataFrame) -> NDArray:
+    """Extracts the embedding vectors into a 2D NumPy array (feature matrix)."""
+    return np.stack(dataframe['embedding'].values)

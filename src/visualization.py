@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.manifold import TSNE
 from pandas import DataFrame
+from src.data_processing import extract_features
 
 
 def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_dir: str = 'outputs') -> None:
@@ -12,7 +13,7 @@ def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_d
     print("This might take a few seconds...")
     os.makedirs(output_dir, exist_ok=True)
 
-    X = np.stack(dataframe['embedding'].values)
+    X = extract_features(dataframe)
     # https://scikit-learn.org/stable/modules/generated/sklearn.manifold.TSNE.html
     tsne = TSNE(n_components=2, random_state=42, init='pca', learning_rate='auto')
     X_reduced = tsne.fit_transform(X)
@@ -20,6 +21,9 @@ def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_d
     df_plot = dataframe.copy()
     df_plot['Dimension 1'] = X_reduced[:, 0]
     df_plot['Dimension 2'] = X_reduced[:, 1]
+
+    ordered_syndromes = dataframe[target_column].value_counts().index.tolist()
+    distinct_markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
     plt.figure(figsize=(12, 8))
 
     # https://seaborn.pydata.org/generated/seaborn.scatterplot.html
@@ -27,6 +31,10 @@ def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_d
         x='Dimension 1',
         y='Dimension 2',
         hue=target_column,
+        hue_order=ordered_syndromes,
+        style=target_column,
+        style_order=ordered_syndromes,
+        markers=distinct_markers,
         palette='tab10',
         data=df_plot,
         legend='full',
@@ -41,5 +49,6 @@ def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_d
 
     # Save the plot
     output_path = os.path.join(output_dir, 'tsne_visualization.png')
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"[+] t-SNE plot exported to: {output_path}\n")
+    plt.close()
