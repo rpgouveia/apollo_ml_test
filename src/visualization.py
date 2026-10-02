@@ -23,7 +23,13 @@ def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_d
     df_plot['Dimension 2'] = X_reduced[:, 1]
 
     ordered_syndromes = dataframe[target_column].value_counts().index.tolist()
+    num_classes = len(ordered_syndromes)
     distinct_markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*', 'h']
+    if num_classes <= len(distinct_markers):
+        markers = distinct_markers[:num_classes]
+    else:
+        markers = True
+
     plt.figure(figsize=(12, 8))
 
     # https://seaborn.pydata.org/generated/seaborn.scatterplot.html
@@ -34,7 +40,7 @@ def plot_tsne(dataframe: DataFrame, target_column: str = 'syndrome_id', output_d
         hue_order=ordered_syndromes,
         style=target_column,
         style_order=ordered_syndromes,
-        markers=distinct_markers,
+        markers=markers,
         palette='tab10',
         data=df_plot,
         legend='full',

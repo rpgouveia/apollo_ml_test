@@ -1,3 +1,4 @@
+import sys
 import argparse
 import pandas as pd
 from pandas import DataFrame
@@ -22,10 +23,10 @@ def main():
         print("Data loaded successfully.")
     except FileNotFoundError:
         print(f"Error: File '{args.data_path}' not found.")
-        return
+        sys.exit(1)
     except Exception as e:
         print(f"An error occurred while loading the data: {e}")
-        return
+        sys.exit(1)
 
     flattened_data: list = flatten_data(data)
     dataframe: DataFrame = pd.DataFrame(flattened_data)
