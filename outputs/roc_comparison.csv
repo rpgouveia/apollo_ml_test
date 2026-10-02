@@ -1,0 +1,6 @@
+Scenario,Custom Function,Sklearn,Status
+Continuous scores,0.5122,0.5122,Match
+Discrete scores (KNN-like),0.5175,0.5175,Match
+"Same data, grouped by class",0.5175,0.5175,Match
+Grouped in reverse order,0.5175,0.5175,Match
+All scores equal,0.5000,0.5000,Match

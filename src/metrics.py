@@ -3,9 +3,7 @@ from numpy.typing import NDArray
 
 
 def calculate_top_k_accuracy(
-        y_true: NDArray, 
-        y_pred_ranked: NDArray, 
-        k: int = 1
+    y_true: NDArray, y_pred_ranked: NDArray, k: int = 1
 ) -> float:
     """
     Calculates Top-K accuracy.
@@ -15,14 +13,14 @@ def calculate_top_k_accuracy(
 
     Args:
         y_true: 1D array containing the true labels (n_samples,).
-        y_pred_ranked: 2D array containing the predicted classes 
+        y_pred_ranked: 2D array containing the predicted classes
         ordered by distance/score (n_samples, n_classes).
-        k: The number of top predictions to consider for accuracy
-        calculation.
+        k: The number of top predictions to consider for accuracy calculation.
     """
     top_k_predictions: NDArray = y_pred_ranked[:, :k]
     matches: NDArray = np.any(top_k_predictions == y_true[:, None], axis=1)
     return float(np.mean(matches))
+
 
 def calculate_macro_f1_score(y_true: NDArray, y_pred: NDArray) -> float:
     """
@@ -35,7 +33,9 @@ def calculate_macro_f1_score(y_true: NDArray, y_pred: NDArray) -> float:
         y_true: 1D array containing the true labels.
         y_pred: 1D array containing the predicted labels.
     """
-    classes: NDArray = np.unique(y_true)
+    # Uses the union to ensure that classes present in the
+    # expected set but not in y_true are accounted for.
+    classes: NDArray = np.union1d(y_true, y_pred)
     f1_scores: list[float] = []
 
     for label in classes:
@@ -54,9 +54,9 @@ def calculate_macro_f1_score(y_true: NDArray, y_pred: NDArray) -> float:
 
     return float(np.mean(f1_scores))
 
+
 def calculate_binary_roc(
-        y_true_binary: NDArray, 
-        y_scores: NDArray
+    y_true_binary: NDArray, y_scores: NDArray
 ) -> tuple[float, list, list]:
     """
     Calculates the ROC curve for a binary classification problem.
@@ -72,6 +72,7 @@ def calculate_binary_roc(
     """
     desc_score_indices: NDArray = np.argsort(y_scores)[::-1]
     y_true_sorted: NDArray = y_true_binary[desc_score_indices]
+    y_scores_sorted: NDArray = y_scores[desc_score_indices]
 
     tpr_list: list[float] = [0.0]
     fpr_list: list[float] = [0.0]
@@ -80,16 +81,21 @@ def calculate_binary_roc(
 
     tp: int = 0
     fp: int = 0
-    for label in y_true_sorted:
-        if label == 1:
+    n_samples: int = len(y_scores_sorted)
+
+    for i in range(n_samples):
+        if y_true_sorted[i] == 1:
             tp += 1
         else:
             fp += 1
-        tpr_list.append(tp / num_pos if num_pos > 0 else 0.0)
-        fpr_list.append(fp / num_neg if num_neg > 0 else 0.0)
+
+        # Adds the point to the curve only if it is the last sample or if the next score is different.
+        # This ensures that blocks of samples with tied scores result in a single diagonal jump.
+        if i == n_samples - 1 or y_scores_sorted[i] != y_scores_sorted[i + 1]:
+            tpr_list.append(tp / num_pos if num_pos > 0 else 0.0)
+            fpr_list.append(fp / num_neg if num_neg > 0 else 0.0)
 
     # Trapezoidal integration to calculate the AUC
-    #https://numpy.org/doc/stable/reference/generated/numpy.trapezoid.html
-    auc: float = np.trapezoid(tpr_list, fpr_list)
+    # https://numpy.org/doc/stable/reference/generated/numpy.trapezoid.html
+    auc: float = float(np.trapezoid(tpr_list, fpr_list))
     return auc, fpr_list, tpr_list
-
