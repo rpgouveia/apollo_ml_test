@@ -146,7 +146,6 @@ def run_knn_pipeline(
 
 def plot_f1_vs_k(results_df: DataFrame, output_dir: str = "outputs") -> None:
     """Generates the F1 stabilization plot as a function of k, with standard deviation bands."""
-    import os
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -197,9 +196,6 @@ def evaluate_best_models_roc(
     calculates per-class F1 scores, performs a Wilcoxon signed-rank test for statistical 
     significance, and generates ROC curves with standard deviation bands.
     """
-    import os
-    from scipy.stats import wilcoxon
-    from src.metrics import calculate_per_class_f1_score
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -234,11 +230,11 @@ def evaluate_best_models_roc(
 
             fold_f1_scores.append(calculate_macro_f1_score(y_test, y_pred))
 
-            # Stores the actual and predicted values ​​for overall class evaluation.
+            # Stores the actual and predicted values for overall class evaluation
             oof_predictions[metric_name]["y_true"].extend(y_test)
             oof_predictions[metric_name]["y_pred"].extend(y_pred)
 
-            # OVR ROC Calculation for the Fold
+            # OVR (One-vs-Rest) ROC Calculation for the Fold
             fold_tprs = []
             fold_class_aucs = []
             for idx, cls in enumerate(knn.classes_):
@@ -282,7 +278,7 @@ def evaluate_best_models_roc(
 
     class_f1s = calculate_per_class_f1_score(y_true_all, y_pred_all)
 
-    # Calculate the number of images (support) per class based on the actual OOF labels
+    # Calculate the number of images per class based on the actual OOF labels
     unique_classes, counts = np.unique(y_true_all, return_counts=True)
     support_dict = dict(zip(unique_classes, counts))
 
