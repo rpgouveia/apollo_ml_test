@@ -41,28 +41,38 @@ def main():
         print(f"An error occurred while loading the data: {e}")
         sys.exit(1)
 
+    # Flatten the data and convert it to a DataFrame
     flattened_data: list = flatten_data(data)
     dataframe: DataFrame = pd.DataFrame(flattened_data)
     print("Data successfully flattened and converted to DataFrame.")
 
+    # Clean and validate the data, then generate EDA report and t-SNE plot
     validated_df: DataFrame = clean_and_validate_data(dataframe)
     generate_eda_report(validated_df)
     plot_tsne(validated_df)
-    results_df = run_knn_pipeline(validated_df, max_k=15, n_splits=10)
-    save_and_display_best_results(results_df)
-    plot_f1_vs_k(results_df)
 
+    # Create a Single Source of Truth (SSOT) for the Folds
+    print("\n=== Preparing Cross-Validation Folds ===")
     X = extract_features(validated_df)
-    y = LabelEncoder().fit_transform(validated_df["syndrome_id"].values)
-    groups = validated_df["subject_id"].values
+    y = LabelEncoder().fit_transform(validated_df['syndrome_id'].values)
+    groups = validated_df['subject_id'].values
+    
     cv = StratifiedGroupKFold(n_splits=10, shuffle=True, random_state=42)
     static_folds = list(cv.split(X, y, groups))
 
+    # Inject the folds into the pipeline and retrieve the dictionary with the best k values
+    results_df = run_knn_pipeline(validated_df, folds=static_folds, max_k=15)
+    best_ks = save_and_display_best_results(results_df)
+
+    # Extraction of dynamic insights for the report
+    plot_f1_vs_k(results_df)
+
+    # Final evaluation using the rigorously determined optimal k values from the pipeline
     evaluate_best_models_roc(
-        validated_df,
-        best_k_cos=14,
-        best_k_euc=14,
-        folds=static_folds,
+        validated_df, 
+        best_k_cos=best_ks['cosine'], 
+        best_k_euc=best_ks['euclidean'], 
+        folds=static_folds
     )
 
 

@@ -32,21 +32,13 @@ def print_fold_distribution(
     print("--------------------------------------\n")
 
 
-def run_knn_pipeline(
-    dataframe: DataFrame, max_k: int = 15, n_splits: int = 10
-) -> DataFrame:
-    """Runs 10-fold Stratified Group CV for KNN across multiple configs."""
+def run_knn_pipeline(dataframe: DataFrame, folds: list, max_k: int = 15) -> DataFrame:
+    """Runs Stratified Group CV for KNN across multiple configs using pre-computed folds."""
+    n_splits = len(folds)
     X = extract_features(dataframe)
 
     le = LabelEncoder()
     y = le.fit_transform(dataframe["syndrome_id"].values)
-    groups = dataframe["subject_id"].values
-
-    cv = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=42)
-
-    # Pre-compute folds to guarantee exact same splits across all configurations
-    # and save redundant computation inside the loops.
-    folds = list(cv.split(X, y, groups))
 
     scalers = {
         "Raw Data": None,
@@ -193,7 +185,7 @@ def evaluate_best_models_roc(
 ) -> None:
     """
     Evaluates the best KNN configurations (Cosine and Euclidean) using the provided folds,
-    calculates per-class F1 scores, performs a Wilcoxon signed-rank test for statistical 
+    calculates per-class F1 scores, performs a Wilcoxon signed-rank test for statistical
     significance, and generates ROC curves with standard deviation bands.
     """
 
@@ -351,18 +343,19 @@ def evaluate_best_models_roc(
 
 def save_and_display_best_results(
     results_df: DataFrame, output_dir: str = "outputs"
-) -> None:
-    """Finds the optimal k for each configuration based on Macro F1, displays summary, and saves to CSV."""
+) -> dict[str, int]:
+    """Finds the optimal k, saves to CSV, and returns the best 'k' for Raw Data combinations."""
     os.makedirs(output_dir, exist_ok=True)
     csv_path = os.path.join(output_dir, "knn_evaluation_results.csv")
     results_df.to_csv(csv_path, index=False)
 
     print("\n=== Optimal Model Configurations ===")
-    print(
-        "* Optimization Criterion: Macro F1 Score (to account for class imbalance) *\n"
-    )
+    print("* Optimization Criterion: Macro F1 Score (to account for class imbalance) *\n")
 
     combinations = results_df[["Scaler", "Distance"]].drop_duplicates()
+
+    # Dictionary to store the optimal k values for raw data configurations
+    best_ks_raw = {}
 
     for _, row in combinations.iterrows():
         scaler = row["Scaler"]
@@ -371,22 +364,18 @@ def save_and_display_best_results(
             (results_df["Scaler"] == scaler) & (results_df["Distance"] == metric)
         ]
 
-        # Select best k using Macro F1
         best_row = subset.loc[subset["Macro F1 (Mean)"].idxmax()]
+
+        # Store the best k for Raw Data configurations
+        if scaler == "Raw Data":
+            best_ks_raw[metric] = int(best_row['k'])
 
         print(f"[{scaler}] + [{metric.upper()}]:")
         print(f" - Optimal k : {best_row['k']}")
-        print(
-            f" - Macro F1  : {best_row['Macro F1 (Mean)']:.4f} ± {best_row['Macro F1 (Std)']:.4f}"
-        )
-        print(
-            f" - Top-1 Acc : {best_row['Top-1 Acc (Mean)']:.4f} ± {best_row['Top-1 Acc (Std)']:.4f}"
-        )
-        print(
-            f" - Top-5 Acc : {best_row['Top-5 Acc (Mean)']:.4f} ± {best_row['Top-5 Acc (Std)']:.4f}"
-        )
-        print(
-            f" - Macro AUC : {best_row['Macro AUC (Mean)']:.4f} ± {best_row['Macro AUC (Std)']:.4f}\n"
-        )
+        print(f" - Macro F1  : {best_row['Macro F1 (Mean)']:.4f} ± {best_row['Macro F1 (Std)']:.4f}")
+        print(f" - Top-1 Acc : {best_row['Top-1 Acc (Mean)']:.4f} ± {best_row['Top-1 Acc (Std)']:.4f}")
+        print(f" - Top-5 Acc : {best_row['Top-5 Acc (Mean)']:.4f} ± {best_row['Top-5 Acc (Std)']:.4f}")
+        print(f" - Macro AUC : {best_row['Macro AUC (Mean)']:.4f} ± {best_row['Macro AUC (Std)']:.4f}\n")
 
     print(f"[+] Full evaluation results saved to: {csv_path}\n")
+    return best_ks_raw
