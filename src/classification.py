@@ -66,7 +66,7 @@ def run_knn_pipeline(dataframe: DataFrame, folds: list, max_k: int = 15) -> Data
                         fold_idx == 0
                         and k == 1
                         and metric == metrics_list[0]
-                        and scaler_name == list(scalers.keys())[0]
+                        and scaler_name == next(iter(scalers))
                     ):
                         print_fold_distribution(y_train, y_test, fold_idx + 1)
 

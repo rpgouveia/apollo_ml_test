@@ -39,7 +39,7 @@ def main():
     except FileNotFoundError:
         print(f"Error: File '{args.data_path}' not found.")
         sys.exit(1)
-    except Exception as e:
+    except ValueError as e:
         print(f"An error occurred while loading the data: {e}")
         sys.exit(1)
 
