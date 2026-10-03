@@ -23,7 +23,7 @@ from src.visualization import plot_tsne
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Load and process data.")
+    parser = argparse.ArgumentParser(description="KNN syndrome classification pipeline: EDA, t-SNE, cross-validation and evaluation.")
     parser.add_argument(
         "--data-path",
         type=str,
