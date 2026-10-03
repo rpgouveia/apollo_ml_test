@@ -1,8 +1,10 @@
 import os
+
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.manifold import TSNE
 from pandas import DataFrame
+from sklearn.manifold import TSNE
+
 from src.data_processing import extract_features
 
 

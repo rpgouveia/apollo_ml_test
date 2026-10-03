@@ -1,18 +1,19 @@
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pandas import DataFrame
-import matplotlib.pyplot as plt
 from scipy.stats import wilcoxon
-from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.preprocessing import StandardScaler, Normalizer, LabelEncoder
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import LabelEncoder, Normalizer, StandardScaler
+
 from src.data_processing import extract_features
 from src.metrics import (
-    calculate_macro_f1_score,
-    calculate_top_k_accuracy,
     calculate_binary_roc,
+    calculate_macro_f1_score,
     calculate_per_class_f1_score,
+    calculate_top_k_accuracy,
 )
 
 
@@ -201,7 +202,7 @@ def evaluate_best_models_roc(
     f1_fold_history = {}
 
     # Global accumulators to simulate predictions across the entire dataset (Out-of-Fold)
-    oof_predictions = {m: {"y_true": [], "y_pred": []} for m in configs.keys()}
+    oof_predictions = {m: {"y_true": [], "y_pred": []} for m in configs}
 
     for metric_name, k in configs.items():
         tprs = []
@@ -258,7 +259,7 @@ def evaluate_best_models_roc(
     wins_euc = sum(1 for d in diffs if d < 0)
     ties = len(diffs) - wins_cos - wins_euc
 
-    print(f"\n=== Paired Comparison (Wilcoxon Signed-Rank Test) ===")
+    print("\n=== Paired Comparison (Wilcoxon Signed-Rank Test) ===")
     print(f"Cosine wins: {wins_cos} | Euclidean wins: {wins_euc} | Ties: {ties}")
     print(f"Wilcoxon statistic: {stat:.1f}, p-value: {p_value:.4f}")
     print("* Note: The p-value may be optimistic due to overlapping CV train folds.\n")

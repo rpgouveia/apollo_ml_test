@@ -1,4 +1,5 @@
 import pickle
+
 import numpy as np
 from numpy.typing import NDArray
 from pandas import DataFrame, Series

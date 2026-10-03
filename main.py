@@ -1,23 +1,25 @@
-import sys
 import argparse
+import sys
+
 import pandas as pd
 from pandas import DataFrame
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import LabelEncoder
+
+from src.classification import (
+    evaluate_best_models_roc,
+    plot_f1_vs_k,
+    run_knn_pipeline,
+    save_and_display_best_results,
+)
 from src.data_processing import (
-    data_loader,
-    flatten_data,
     clean_and_validate_data,
+    data_loader,
     extract_features,
+    flatten_data,
 )
 from src.eda import generate_eda_report
 from src.visualization import plot_tsne
-from src.classification import (
-    run_knn_pipeline,
-    save_and_display_best_results,
-    plot_f1_vs_k,
-    evaluate_best_models_roc
-)
 
 
 def main():

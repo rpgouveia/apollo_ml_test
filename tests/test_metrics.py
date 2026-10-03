@@ -1,10 +1,7 @@
 import numpy as np
 import pytest
-from sklearn.metrics import (
-    roc_auc_score,
-    f1_score,
-    top_k_accuracy_score
-)
+from sklearn.metrics import f1_score, roc_auc_score, top_k_accuracy_score
+
 from src.metrics import (
     calculate_binary_roc,
     calculate_macro_f1_score,
