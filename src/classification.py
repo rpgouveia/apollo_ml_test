@@ -12,7 +12,7 @@ from src.metrics import (
     calculate_macro_f1_score,
     calculate_top_k_accuracy,
     calculate_binary_roc,
-    calculate_per_class_f1_score
+    calculate_per_class_f1_score,
 )
 
 
@@ -120,180 +120,235 @@ def run_knn_pipeline(
                 # ddof adjusted for sample standard deviation
                 # https://numpy.org/doc/stable/reference/generated/numpy.std.html
                 # fold_f1 saved for pairwise comparison
-                results.append({
-                    'Scaler': scaler_name,
-                    'Distance': metric,
-                    'k': k,
-                    'Top-1 Acc (Mean)': np.mean(fold_top1),
-                    'Top-1 Acc (Std)': np.std(fold_top1, ddof=1),
-                    'Top-5 Acc (Mean)': np.mean(fold_top5),
-                    'Top-5 Acc (Std)': np.std(fold_top5, ddof=1),
-                    'Macro F1 (Mean)': np.mean(fold_f1),
-                    'Macro F1 (Std)': np.std(fold_f1, ddof=1),
-                    'Macro AUC (Mean)': np.mean(fold_auc),
-                    'Macro AUC (Std)': np.std(fold_auc, ddof=1),
-                    'Fold F1s': fold_f1
-                })
+                results.append(
+                    {
+                        "Scaler": scaler_name,
+                        "Distance": metric,
+                        "k": k,
+                        "Top-1 Acc (Mean)": np.mean(fold_top1),
+                        "Top-1 Acc (Std)": np.std(fold_top1, ddof=1),
+                        "Top-5 Acc (Mean)": np.mean(fold_top5),
+                        "Top-5 Acc (Std)": np.std(fold_top5, ddof=1),
+                        "Macro F1 (Mean)": np.mean(fold_f1),
+                        "Macro F1 (Std)": np.std(fold_f1, ddof=1),
+                        "Macro AUC (Mean)": np.mean(fold_auc),
+                        "Macro AUC (Std)": np.std(fold_auc, ddof=1),
+                        "Fold F1s": fold_f1,
+                    }
+                )
 
-                print(f"k={k:02d} | F1: {np.mean(fold_f1):.4f}±{np.std(fold_f1, ddof=1):.4f} | AUC: {np.mean(fold_auc):.4f}±{np.std(fold_auc, ddof=1):.4f}")
+                print(
+                    f"k={k:02d} | F1: {np.mean(fold_f1):.4f}±{np.std(fold_f1, ddof=1):.4f} | AUC: {np.mean(fold_auc):.4f}±{np.std(fold_auc, ddof=1):.4f}"
+                )
 
     return pd.DataFrame(results)
 
 
-def plot_f1_vs_k(results_df: DataFrame, output_dir: str = 'outputs') -> None:
+def plot_f1_vs_k(results_df: DataFrame, output_dir: str = "outputs") -> None:
     """Generates the F1 stabilization plot as a function of k, with standard deviation bands."""
     import os
+
     os.makedirs(output_dir, exist_ok=True)
-    
-    raw_df = results_df[results_df['Scaler'] == 'Raw Data']
-    
+
+    raw_df = results_df[results_df["Scaler"] == "Raw Data"]
+
     plt.figure(figsize=(10, 6))
-    colors = {'cosine': 'blue', 'euclidean': 'orange'}
-    
-    for metric in ['cosine', 'euclidean']:
-        sub = raw_df[raw_df['Distance'] == metric]
-        k_vals = sub['k'].values
-        f1_mean = sub['Macro F1 (Mean)'].values
-        f1_std = sub['Macro F1 (Std)'].values
-        
-        plt.plot(k_vals, f1_mean, label=f'{metric.capitalize()}', color=colors[metric], marker='o')
-        plt.fill_between(k_vals, f1_mean - f1_std, f1_mean + f1_std, color=colors[metric], alpha=0.2)
-        
-    plt.title('Macro F1 Score vs. k Neighbors (Raw Data)')
-    plt.xlabel('Number of Neighbors (k)')
-    plt.ylabel('Macro F1 Score')
+    colors = {"cosine": "blue", "euclidean": "orange"}
+
+    for metric in ["cosine", "euclidean"]:
+        sub = raw_df[raw_df["Distance"] == metric]
+        k_vals = sub["k"].values
+        f1_mean = sub["Macro F1 (Mean)"].values
+        f1_std = sub["Macro F1 (Std)"].values
+
+        plt.plot(
+            k_vals,
+            f1_mean,
+            label=f"{metric.capitalize()}",
+            color=colors[metric],
+            marker="o",
+        )
+        plt.fill_between(
+            k_vals, f1_mean - f1_std, f1_mean + f1_std, color=colors[metric], alpha=0.2
+        )
+
+    plt.title("Macro F1 Score vs. k Neighbors (Raw Data)")
+    plt.xlabel("Number of Neighbors (k)")
+    plt.ylabel("Macro F1 Score")
     plt.xticks(range(1, 16))
-    plt.legend(loc='lower right')
-    plt.grid(True, linestyle='--', alpha=0.6)
-    
-    output_path = os.path.join(output_dir, 'f1_vs_k_raw_data.png')
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.legend(loc="lower right")
+    plt.grid(True, linestyle="--", alpha=0.6)
+
+    output_path = os.path.join(output_dir, "f1_vs_k_raw_data.png")
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"[+] F1 vs k plot saved to: {output_path}")
 
 
 def evaluate_best_models_roc(
-    dataframe: DataFrame, 
-    best_k_cos: int, 
-    best_k_euc: int, 
-    folds: list, # Passing pre-calculated folds
-    output_dir: str = 'outputs'
+    dataframe: DataFrame,
+    best_k_cos: int,
+    best_k_euc: int,
+    folds: list,
+    output_dir: str = "outputs",
 ) -> None:
-    """Evaluates the best models on raw data to generate interpolated ROC, per-class F1, and statistical tests."""
+    """
+    Evaluates the best KNN configurations (Cosine and Euclidean) using the provided folds,
+    calculates per-class F1 scores, performs a Wilcoxon signed-rank test for statistical 
+    significance, and generates ROC curves with standard deviation bands.
+    """
+    import os
+    from scipy.stats import wilcoxon
+    from src.metrics import calculate_per_class_f1_score
+
     os.makedirs(output_dir, exist_ok=True)
+
     X = extract_features(dataframe)
     le = LabelEncoder()
-    y = le.fit_transform(dataframe['syndrome_id'].values)
-    
-    configs = {'Cosine': best_k_cos, 'Euclidean': best_k_euc}
+    y = le.fit_transform(dataframe["syndrome_id"].values)
+
+    configs = {"Cosine": best_k_cos, "Euclidean": best_k_euc}
     mean_fpr = np.linspace(0, 1, 100)
     roc_data = {}
     f1_fold_history = {}
-    
-    # Global accumulators to simulate predictions over the entire dataset (Out-of-Fold)
-    oof_predictions = {m: {'y_true': [], 'y_pred': []} for m in configs.keys()}
-    
+
+    # Global accumulators to simulate predictions across the entire dataset (Out-of-Fold)
+    oof_predictions = {m: {"y_true": [], "y_pred": []} for m in configs.keys()}
+
     for metric_name, k in configs.items():
         tprs = []
         fold_aucs = []
         fold_f1_scores = []
-        
+
         for train_idx, test_idx in folds:
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
-            
-            knn = KNeighborsClassifier(n_neighbors=k, metric=metric_name.lower(), weights='distance')
+
+            knn = KNeighborsClassifier(
+                n_neighbors=k, metric=metric_name.lower(), weights="distance"
+            )
             knn.fit(X_train, y_train)
             y_probs = knn.predict_proba(X_test)
-            
-            y_pred = knn.classes_[np.argsort(-y_probs, axis=1, kind='mergesort')[:, 0]]
-            
+
+            y_pred = knn.classes_[np.argsort(-y_probs, axis=1, kind="mergesort")[:, 0]]
+
             fold_f1_scores.append(calculate_macro_f1_score(y_test, y_pred))
-            
-            # Save actual and estimated predictions for global class evaluation
-            oof_predictions[metric_name]['y_true'].extend(y_test)
-            oof_predictions[metric_name]['y_pred'].extend(y_pred)
-            
+
+            # Stores the actual and predicted values ​​for overall class evaluation.
+            oof_predictions[metric_name]["y_true"].extend(y_test)
+            oof_predictions[metric_name]["y_pred"].extend(y_pred)
+
             # OVR ROC Calculation for the Fold
             fold_tprs = []
             fold_class_aucs = []
             for idx, cls in enumerate(knn.classes_):
                 y_true_bin = (y_test == cls).astype(int)
                 if np.sum(y_true_bin) > 0:
-                    auc_val, fpr_val, tpr_val = calculate_binary_roc(y_true_bin, y_probs[:, idx])
+                    auc_val, fpr_val, tpr_val = calculate_binary_roc(
+                        y_true_bin, y_probs[:, idx]
+                    )
                     interp_tpr = np.interp(mean_fpr, fpr_val, tpr_val)
                     interp_tpr[0] = 0.0
                     fold_tprs.append(interp_tpr)
-                    fold_class_aucs.append(auc_val) # Store AUC of the class
-                    
+                    fold_class_aucs.append(auc_val)
+
             tprs.append(np.mean(fold_tprs, axis=0))
-            fold_aucs.append(np.mean(fold_class_aucs)) # AUC Macro of this specific fold
-        
+            fold_aucs.append(np.mean(fold_class_aucs))
+
         f1_fold_history[metric_name] = fold_f1_scores
         roc_data[metric_name] = {
-            'tprs': tprs, 
-            'mean_auc': np.mean(fold_aucs), 
-            'std_auc': np.std(fold_aucs, ddof=1)
+            "tprs": tprs,
+            "mean_auc": np.mean(fold_aucs),
+            "std_auc": np.std(fold_aucs, ddof=1),
         }
-    
-    # Wilcoxon Statistical Test (Magnitude and Paired Signs)
-    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.wilcoxon.html
-    diffs = np.array(f1_fold_history['Cosine']) - np.array(f1_fold_history['Euclidean'])
+
+    # 1. Wilcoxon Statistical Test
+    diffs = np.array(f1_fold_history["Cosine"]) - np.array(f1_fold_history["Euclidean"])
     stat, p_value = wilcoxon(diffs)
-    
+
     wins_cos = sum(1 for d in diffs if d > 0)
     wins_euc = sum(1 for d in diffs if d < 0)
     ties = len(diffs) - wins_cos - wins_euc
-    
+
     print(f"\n=== Paired Comparison (Wilcoxon Signed-Rank Test) ===")
     print(f"Cosine wins: {wins_cos} | Euclidean wins: {wins_euc} | Ties: {ties}")
     print(f"Wilcoxon statistic: {stat:.1f}, p-value: {p_value:.4f}")
     print("* Note: The p-value may be optimistic due to overlapping CV train folds.\n")
-    
-    # F1 Assessment by Class
+
+    # 2. F1 Evaluation by Class and CSV Export
     print(f"=== Per-Class F1 Score (Out-of-Fold, Cosine k={best_k_cos}) ===")
-    y_true_all = oof_predictions['Cosine']['y_true']
-    y_pred_all = oof_predictions['Cosine']['y_pred']
-    
-    class_f1s = calculate_per_class_f1_score(np.array(y_true_all), np.array(y_pred_all))
-    
-    # Translate the indexes back to the actual Syndrome IDs
+    y_true_all = np.array(oof_predictions["Cosine"]["y_true"])
+    y_pred_all = np.array(oof_predictions["Cosine"]["y_pred"])
+
+    class_f1s = calculate_per_class_f1_score(y_true_all, y_pred_all)
+
+    # Calculate the number of images (support) per class based on the actual OOF labels
+    unique_classes, counts = np.unique(y_true_all, return_counts=True)
+    support_dict = dict(zip(unique_classes, counts))
+
+    per_class_results = []
+
+    # Translate the indices back to the real Syndrome IDs and populate the list
     for cls_encoded, f1_val in class_f1s.items():
         original_label = le.inverse_transform([cls_encoded])[0]
-        print(f"Syndrome {original_label}: F1 = {f1_val:.4f}")
-        
-    # Plotting the ROC Curves with Standard Deviation Bands
+        support = support_dict.get(cls_encoded, 0)
+
+        per_class_results.append(
+            {
+                "syndrome_id": original_label,
+                "Support (Images)": support,
+                "F1 Score": round(f1_val, 4),
+            }
+        )
+
+    df_per_class = pd.DataFrame(per_class_results)
+
+    # Sort by F1 Score (descending) to highlight the best classes
+    df_per_class = df_per_class.sort_values(by="F1 Score", ascending=False)
+
+    print(df_per_class.to_string(index=False))
+
+    per_class_csv_path = os.path.join(output_dir, "per_class_f1_scores.csv")
+    df_per_class.to_csv(per_class_csv_path, index=False)
+    print(f"\n[+] Per-class metrics exported to: {per_class_csv_path}")
+
+    # 3. Plotting the ROC Curves with Standard Deviation Bands
     plt.figure(figsize=(10, 8))
-    colors = {'Cosine': 'blue', 'Euclidean': 'orange'}
-    
+    colors = {"Cosine": "blue", "Euclidean": "orange"}
+
     for metric_name, data in roc_data.items():
-        tprs = np.array(data['tprs'])
+        tprs = np.array(data["tprs"])
         mean_tpr = np.mean(tprs, axis=0)
-        mean_tpr[-1] = 1.0 
+        mean_tpr[-1] = 1.0
         std_tpr = np.std(tprs, axis=0, ddof=1)
-        
+
         # Prevention against illegal bandwidth limits (TPR cannot be <0 nor >1)
         tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
         tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
-        
-        mean_auc = data['mean_auc']
-        std_auc = data['std_auc']
-        
+
+        mean_auc = data["mean_auc"]
+        std_auc = data["std_auc"]
+
         plt.plot(
-            mean_fpr, mean_tpr, color=colors[metric_name], 
-            label=f'{metric_name} (Mean AUC = {mean_auc:.4f} ± {std_auc:.4f})', lw=2
+            mean_fpr,
+            mean_tpr,
+            color=colors[metric_name],
+            label=f"{metric_name} (Mean AUC = {mean_auc:.4f} ± {std_auc:.4f})",
+            lw=2,
         )
-        plt.fill_between(mean_fpr, tprs_lower, tprs_upper, color=colors[metric_name], alpha=0.2)
-        
-    plt.plot([0, 1], [0, 1], linestyle='--', lw=2, color='gray', label='Random Guess')
-    plt.title('10-Fold CV Averaged ROC Curves (OVR Macro) with ±1 Std Dev')
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.legend(loc='lower right')
-    plt.grid(True, linestyle='--', alpha=0.6)
-    
-    output_path = os.path.join(output_dir, 'roc_curves_comparison.png')
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        plt.fill_between(
+            mean_fpr, tprs_lower, tprs_upper, color=colors[metric_name], alpha=0.2
+        )
+
+    plt.plot([0, 1], [0, 1], linestyle="--", lw=2, color="gray", label="Random Guess")
+    plt.title("10-Fold CV Averaged ROC Curves (OVR Macro) with ±1 Std Dev")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.legend(loc="lower right")
+    plt.grid(True, linestyle="--", alpha=0.6)
+
+    output_path = os.path.join(output_dir, "roc_curves_comparison.png")
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
     print(f"\n[+] ROC curves plot saved to: {output_path}\n")
 

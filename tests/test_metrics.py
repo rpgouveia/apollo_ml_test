@@ -8,6 +8,7 @@ from sklearn.metrics import (
 from src.metrics import (
     calculate_binary_roc,
     calculate_macro_f1_score,
+    calculate_per_class_f1_score,
     calculate_top_k_accuracy,
 )
 
@@ -86,6 +87,21 @@ def test_f1_macro_missing_class():
     f1_custom = calculate_macro_f1_score(y_true, y_pred)
     f1_sklearn = f1_score(y_true, y_pred, average='macro')
     assert f1_custom == pytest.approx(f1_sklearn)
+
+
+def test_per_class_f1_score():
+    """Ensures custom per-class F1 matches sklearn implementation (average=None)."""
+    rng = np.random.default_rng(42)
+    y_true = rng.integers(0, 10, 100)
+    y_pred = rng.integers(0, 10, 100)
+    
+    classes = np.union1d(y_true, y_pred)
+    
+    f1_custom_dict = calculate_per_class_f1_score(y_true, y_pred)
+    f1_sklearn = f1_score(y_true, y_pred, average=None, labels=classes)
+    
+    for idx, label in enumerate(classes):
+        assert f1_custom_dict[int(label)] == pytest.approx(f1_sklearn[idx])
 
 
 @pytest.mark.parametrize("k", [1, 3, 5])

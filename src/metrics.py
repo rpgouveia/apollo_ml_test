@@ -22,26 +22,32 @@ def calculate_top_k_accuracy(
     return float(np.mean(matches))
 
 
-def calculate_per_class_f1_score(y_true: NDArray, y_pred: NDArray) -> dict:
+def calculate_per_class_f1_score(y_true: NDArray, y_pred: NDArray) -> dict[int, float]:
     """
     Calculates the F1 score for each individual class.
     Returns a dictionary mapping the class label to its F1 score.
+    https://ml-compiled.readthedocs.io/en/latest/metrics.html
+
+    Args:
+        y_true: 1D array containing the true labels.
+        y_pred: 1D array containing the predicted labels.
     """
-    classes = np.union1d(y_true, y_pred)
-    f1_scores = {}
+    classes: NDArray = np.union1d(y_true, y_pred)
+    f1_scores: dict[int, float] = {}
 
     for label in classes:
-        tp = np.sum((y_pred == label) & (y_true == label))
-        fp = np.sum((y_pred == label) & (y_true != label))
-        fn = np.sum((y_pred != label) & (y_true == label))
+        tp: int = np.sum((y_pred == label) & (y_true == label))
+        fp: int = np.sum((y_pred == label) & (y_true != label))
+        fn: int = np.sum((y_pred != label) & (y_true == label))
 
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
         if precision + recall == 0:
-            f1_scores[label] = 0.0
+            f1_scores[int(label)] = 0.0
         else:
-            f1_scores[label] = 2 * (precision * recall) / (precision + recall)
+            f1_scores[int(label)] = float(2 * (precision * recall) / (precision + recall))
+
     return f1_scores
 
 
