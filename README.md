@@ -29,7 +29,7 @@ pip install -r requirements.txt
 
 ## Data
 
-The dataset is included in this repository.
+The dataset is not included in this package. Place the pickle file in the `data/` folder:
 
 ```
 data/mini_gm_public_v0.1.p
@@ -111,7 +111,7 @@ Run it as a module (`-m`) from the project root so that the `src` package is imp
 │   └── test_metrics.py      # Metric validation against scikit-learn
 ├── scripts/
 │   └── compare_roc.py       # ROC bug-fix evidence table (report only)
-├── data/                    # Input pickle
+├── data/                    # Input pickle (not included)
 ├── outputs/                 # Generated figures and tables
 ├── pyproject.toml
 ├── uv.lock
